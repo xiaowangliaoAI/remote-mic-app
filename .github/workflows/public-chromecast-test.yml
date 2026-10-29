@@ -33,8 +33,28 @@ jobs:
         run: scripts/build-app.sh
       - name: Preserve build for inspection
         if: matrix.public_chromecast == '1'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import plistlib
+          app=Path('dist/SayAll.app/Contents')
+          p=app/'Info.plist'
+          info=plistlib.loads(p.read_bytes())
+          info['CFBundleIdentifier']='com.xiaowangliaoai.SayAllChromecastTest'
+          info['CFBundleDisplayName']='SayAll Chromecast Test'
+          info['SUEnableAutomaticChecks']=False
+          info.pop('CFBundleIconFile',None)
+          info.pop('SUFeedURL',None)
+          p.write_bytes(plistlib.dumps(info))
+          for name in ['AppIcon.png','AppIcon.icns','AppIcons/standard.png','AppIcons/faceted-duck.png']:
+              (app/'Resources'/name).unlink(missing_ok=True)
+          PY
+          codesign --force --deep --sign - --timestamp=none dist/SayAll.app
+          ditto -c -k --sequesterRsrc --keepParent dist/SayAll.app dist/SayAll-Chromecast-Test.zip
+      - name: Upload unverified test archive
+        if: matrix.public_chromecast == '1'
         uses: actions/upload-artifact@v4
         with:
           name: SayAll-public-chromecast-unverified
-          path: dist/SayAll.app
+          path: dist/SayAll-Chromecast-Test.zip
           retention-days: 7
