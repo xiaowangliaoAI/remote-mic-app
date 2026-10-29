@@ -61,7 +61,7 @@ struct ATVVCapabilities: Equatable {
     let selectedCodec: UInt8
     let sampleRate: Double
 
-    static func parse(_ data: Data) -> ATVVCapabilities? {
+    static func parse(_ data: Data, allowingLegacyLayout: Bool = true) -> ATVVCapabilities? {
         let bytes = Array(data)
         guard bytes.count >= 7, bytes[0] == 0x0B else { return nil }
 
@@ -72,7 +72,7 @@ struct ATVVCapabilities: Equatable {
         if version >= 0x0100 {
             codecs = bytes[3]
             interaction = bytes[4]
-            if codecs == 0, bytes.count >= 9, bytes[4] & 0x03 != 0 {
+            if allowingLegacyLayout, codecs == 0, bytes.count >= 9, bytes[4] & 0x03 != 0 {
                 codecs = bytes[4]
                 interaction = 0x03
             }

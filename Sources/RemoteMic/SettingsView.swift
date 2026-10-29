@@ -913,6 +913,12 @@ struct SettingsView: View {
             } else if settings.selectedRemoteProfile?.model.isChromecastRemote == true {
                 #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
                 chromecastMappingPage
+                #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+                hardwareMappingPage {
+                    Text(verbatim: localization.text("onboarding.control_source.chromecast_voice_only.detail"))
+                        .font(.system(size: 14))
+                    chromecastVoiceModeSection
+                }
                 #else
                 mappingPage
                 #endif

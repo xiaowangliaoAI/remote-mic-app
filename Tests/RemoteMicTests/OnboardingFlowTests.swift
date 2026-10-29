@@ -49,7 +49,11 @@ struct OnboardingFlowTests {
         let visible = OnboardingControlSourceVisibilityPolicy.visibleSources(
             OnboardingControlSource.allCases
         )
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(visible.contains(.chromecastRemote))
+        #else
         #expect(!visible.contains(.chromecastRemote))
+        #endif
         #expect(visible.contains(.xiaomiRemote))
         #expect(visible.contains(.appleCompanion))
         #expect(visible.contains(.webRemote))

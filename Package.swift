@@ -217,11 +217,13 @@ if buttonProfilesTestAccessEnabled && (buttonProfilesPackagePath ?? "").isEmpty 
 if buttonProfilesTestAccessEnabled && privateArtifactsAvailable {
     fatalError("free button profile test access excludes private membership artifacts")
 }
-let chromecastEnabled = privateChromecastEnabled || !(chromecastPackagePath ?? "").isEmpty
+let publicChromecastEnabled = ProcessInfo.processInfo.environment["SAYALL_ENABLE_PUBLIC_CHROMECAST"] == "1"
+let chromecastEnabled = privateChromecastEnabled || !(chromecastPackagePath ?? "").isEmpty || publicChromecastEnabled
 let macOSPlatform: SupportedPlatform = ProcessInfo.processInfo.environment["RELEASE_VARIANT"] == "intel"
     ? .macOS(.v13)
     : .macOS(.v14)
 var remoteMicSwiftSettings: [SwiftSetting] = []
+if publicChromecastEnabled { remoteMicSwiftSettings.append(.define("SAYALL_PUBLIC_CHROMECAST_ENABLED")) }
 // Match the existing optional-interface probes: old private packages keep their
 // original initializer, while source and binary packages exposing this API share the host poll.
 let siriPermissionMonitorAvailable = [
@@ -283,6 +285,7 @@ var remoteMicLinkerSettings: [LinkerSetting] = []
 if privateArtifactsAvailable { remoteMicLinkerSettings.append(.unsafeFlags(["-Xlinker", "-ObjC"])) }
 
 var remoteMicTestSwiftSettings: [SwiftSetting] = []
+if publicChromecastEnabled { remoteMicTestSwiftSettings.append(.define("SAYALL_PUBLIC_CHROMECAST_ENABLED")) }
 if sourceMacroHostShortcutsAvailable || artifactMacroHostShortcutsAvailable {
     remoteMicTestSwiftSettings.append(.define("SAYALL_MACRO_HOST_SHORTCUTS"))
 }

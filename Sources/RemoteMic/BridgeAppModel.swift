@@ -893,7 +893,7 @@ final class BridgeAppModel: NSObject, ObservableObject, XiaomiBluetoothBridgeDel
     // MARK: - Chromecast（可选私有包）
 
     /// 私有包缺失时该实例内部全部退化为 no-op，宿主行为与未接入前完全一致。
-    private lazy var chromecastFeature = ChromecastFeatureIntegration()
+    private lazy var chromecastFeature = ChromecastFeatureIntegration(settings: settings)
     /// 当前是否有活跃的 Chromecast 收音会话。
     private var chromecastVoiceActive = false
     private var chromecastVoiceStopping = false

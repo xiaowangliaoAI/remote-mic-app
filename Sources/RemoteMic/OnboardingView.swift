@@ -3114,7 +3114,8 @@ struct OnboardingView: View {
             voiceSessionEnded: voiceSessionEnded,
             transcriptionAppeared: transcriptionAppeared,
             manualTranscriptInputObserved: manualTranscriptInputObserved,
-            testedRemoteButtonCount: testedControlButtons.count
+            testedRemoteButtonCount: testedControlButtons.count,
+            controlButtonsSupported: !usesPublicChromecastVoiceOnly
         )
     }
 
@@ -3145,6 +3146,14 @@ struct OnboardingView: View {
                 (voiceToolSelectionIsValid &&
                     proposedPairingPlan != nil &&
                     inputMethodGuideStepsCompleted))
+    }
+
+    private var usesPublicChromecastVoiceOnly: Bool {
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        return settings.onboardingControlSource == .chromecastRemote
+        #else
+        return false
+        #endif
     }
 
     private var inputMethodGuideStepsCompleted: Bool {
@@ -4091,7 +4100,7 @@ struct OnboardingView: View {
 
     private func prepareForStep(_ step: OnboardingStep) {
         refreshPermissionStates()
-        if settings.onboardingControlSource == .chromecastRemote {
+        if settings.onboardingControlSource == .chromecastRemote && !usesPublicChromecastVoiceOnly {
             selectControlSource(.unselected)
             settings.setOnboardingStep(.remoteAvailability)
             return
@@ -4792,6 +4801,12 @@ struct OnboardingView: View {
         }
         if settings.onboardingStep == .voiceTest {
             settings.verifyOnboardingVoiceBinding()
+            if usesPublicChromecastVoiceOnly {
+                // This build does not claim ordinary-key support. Real voice,
+                // audio and transcript checks above remain mandatory.
+                settings.setOnboardingStep(.complete)
+                return
+            }
         }
         if settings.onboardingStep != .voiceTest {
             settings.recordFirstUseEvent(.passed, step: settings.onboardingStep)

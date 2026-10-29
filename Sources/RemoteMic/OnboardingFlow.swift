@@ -396,7 +396,12 @@ enum OnboardingControlSource: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 
     var titleKey: String { "onboarding.control_source.\(rawValue).title" }
-    var detailKey: String { "onboarding.control_source.\(rawValue).detail" }
+    var detailKey: String {
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        if self == .chromecastRemote { return "onboarding.control_source.chromecast_voice_only.detail" }
+        #endif
+        return "onboarding.control_source.\(rawValue).detail"
+    }
 
     var supportedGestureModes: Set<VoiceGestureMode> {
         switch self {
@@ -405,6 +410,9 @@ enum OnboardingControlSource: String, CaseIterable, Codable, Identifiable {
         case .xiaomiRemote, .siriRemote:
             return [.hold]
         case .chromecastRemote, .appleCompanion, .webRemote:
+            #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+            if self == .chromecastRemote { return [.hold] }
+            #endif
             return [.hold, .toggle]
         }
     }
@@ -552,7 +560,11 @@ enum OnboardingControlSourceVisibilityPolicy {
     static func visibleSources(
         _ sources: [OnboardingControlSource]
     ) -> [OnboardingControlSource] {
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        return sources
+        #else
         sources.filter { $0 != .chromecastRemote }
+        #endif
     }
 }
 
@@ -773,6 +785,7 @@ struct OnboardingCapabilities: Equatable {
     var transcriptionAppeared = false
     var manualTranscriptInputObserved = false
     var testedRemoteButtonCount = 0
+    var controlButtonsSupported = true
 }
 
 enum OnboardingAudioSelectionPolicy {
@@ -874,7 +887,8 @@ enum OnboardingFlowPolicy {
                     capabilities.inputMonitoringGranted) &&
                 capabilities.accessibilityGranted
         case .remote:
-            return capabilities.remoteConnected && capabilities.remoteButtonObserved
+            return capabilities.remoteConnected &&
+                (!capabilities.controlButtonsSupported || capabilities.remoteButtonObserved)
         case .audio:
             return capabilities.audioOutputSelected &&
                 (controlMethod.usesOnDemandAudioOutput || capabilities.audioReady)
@@ -885,7 +899,7 @@ enum OnboardingFlowPolicy {
                 capabilities.transcriptionAppeared &&
                 !capabilities.manualTranscriptInputObserved
         case .controls:
-            return capabilities.testedRemoteButtonCount >= 3
+            return !capabilities.controlButtonsSupported || capabilities.testedRemoteButtonCount >= 3
         case .complete:
             return isControlSelectionValid(
                 remoteAvailability: remoteAvailability,

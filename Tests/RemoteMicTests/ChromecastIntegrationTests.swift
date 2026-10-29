@@ -44,9 +44,14 @@ struct ChromecastIntegrationTests {
     // MARK: - 产品默认值
 
     @Test func productDefaultVoiceModeIsToggle() {
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(ChromecastVoiceMode.productDefault == .hold)
+        #expect(ChromecastVoiceMode.allCases == [.hold])
+        #else
         // 需求：toggle 为默认语音模式，hold 保留给用户可选切换。
         #expect(ChromecastVoiceMode.productDefault == .toggle)
         #expect(ChromecastVoiceMode.allCases == [.toggle, .hold])
+        #endif
     }
 
     @Test func everyLinkStatusHasALocalizationKey() {

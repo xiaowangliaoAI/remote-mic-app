@@ -52,7 +52,19 @@ enum ChromecastVoiceMode: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    static var allCases: [ChromecastVoiceMode] {
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        return [.hold]
+        #else
+        return [.toggle, .hold]
+        #endif
+    }
+
+    #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+    static let productDefault: ChromecastVoiceMode = .hold
+    #else
     static let productDefault: ChromecastVoiceMode = .toggle
+    #endif
 
     var localizationKey: String {
         switch self {
@@ -223,6 +235,8 @@ final class ChromecastFeatureIntegration {
     static var isPackageIncluded: Bool {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         return true
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        return true
         #else
         return false
         #endif
@@ -249,9 +263,11 @@ final class ChromecastFeatureIntegration {
 
     #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
     private let feature: SayAllChromecastFeature
+    #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+    private let publicTransport: PublicChromecastTransport?
     #endif
 
-    init() {
+    init(settings: AppSettings? = nil) {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         feature = SayAllChromecastFeature()
         feature.onConnection = { [weak self] connection in
@@ -281,18 +297,29 @@ final class ChromecastFeatureIntegration {
                 cancellationReason: event.cancellationReason?.logToken
             ))
         }
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        publicTransport = settings.map { PublicChromecastTransport(settings: $0) }
+        publicTransport?.onStatus = { [weak self] status in self?.onStatusChange?(status) }
+        publicTransport?.onStart = { [weak self] in self?.onVoiceStart?() }
+        publicTransport?.onStop = { [weak self] reason in self?.onVoiceStop?(reason) }
+        publicTransport?.onSamples = { [weak self] samples, generation in self?.onSamples?(samples, generation) }
         #endif
     }
 
     func start() {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         feature.start()
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        onDeclaredCapabilitiesChange?([.voiceStream])
+        publicTransport?.start()
         #endif
     }
 
     func stop() {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         feature.stop()
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        publicTransport?.stop()
         #endif
     }
 
@@ -300,6 +327,8 @@ final class ChromecastFeatureIntegration {
     func reconnect() {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         feature.reconnect()
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        publicTransport?.reconnect()
         #endif
     }
 
@@ -331,6 +360,8 @@ final class ChromecastFeatureIntegration {
     func notifyHostVoiceSessionEnded() {
         #if SAYALL_CHROMECAST_ENABLED && canImport(SayAllChromecast)
         feature.notifyHostVoiceSessionEnded()
+        #elseif SAYALL_PUBLIC_CHROMECAST_ENABLED
+        publicTransport?.endVoice()
         #endif
     }
 

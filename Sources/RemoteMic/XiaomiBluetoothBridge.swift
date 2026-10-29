@@ -119,6 +119,9 @@ final class XiaomiBluetoothBridge: NSObject {
     )
 
     private let settings: AppSettings
+    private let chromecastOnly: Bool
+    private var googleReadiness = G9N9NReadiness()
+    private var googleKeepalive: DispatchWorkItem?
     private weak var delegate: XiaomiBluetoothBridgeDelegate?
     private let targetIdentifier: UUID?
     private let excludedIdentifiers: () -> Set<UUID>
@@ -189,6 +192,7 @@ final class XiaomiBluetoothBridge: NSObject {
     private let batteryLevelStatusUUID = CBUUID(string: "2BED")
     private let deviceInformationServiceUUID = CBUUID(string: "180A")
     private let modelNumberUUID = CBUUID(string: "2A24")
+    private let pnpIDUUID = CBUUID(string: "2A50")
 
     var deviceIdentifier: UUID? {
         peripheral?.identifier ?? targetIdentifier
@@ -233,10 +237,12 @@ final class XiaomiBluetoothBridge: NSObject {
     init(
         settings: AppSettings,
         delegate: XiaomiBluetoothBridgeDelegate,
+        chromecastOnly: Bool = false,
         targetIdentifier: UUID? = nil,
         excludedIdentifiers: @escaping () -> Set<UUID> = { [] }
     ) {
         self.settings = settings
+        self.chromecastOnly = chromecastOnly
         self.delegate = delegate
         self.targetIdentifier = targetIdentifier
         self.excludedIdentifiers = excludedIdentifiers
@@ -576,7 +582,11 @@ final class XiaomiBluetoothBridge: NSObject {
         advertisedName: String?,
         usesCachedTarget: Bool = false
     ) -> Bool {
-        let decision = VoiceRemoteAdmission.decide(
+        let decision: VoiceRemoteAdmissionDecision = chromecastOnly
+            ? ((G9N9NProtocol.isCandidateName(advertisedName ?? candidate.name) ||
+                candidate.identifier == targetIdentifier)
+                ? .adoptRecognizedName("g9n9n_candidate") : .ignore)
+            : VoiceRemoteAdmission.decide(
             identifier: candidate.identifier,
             targetIdentifier: targetIdentifier,
             advertisesVoiceService: advertisesVoiceService,
@@ -664,6 +674,8 @@ final class XiaomiBluetoothBridge: NSObject {
         initializationTimeoutWorkItem = nil
         capabilitiesRequested = false
         capabilitiesConfirmed = false
+        googleReadiness = G9N9NReadiness()
+        if chromecastOnly { decoder.lowNibbleFirst = false }
         capabilities = Self.defaultCapabilities
         currentAttemptUsesCachedTarget = false
         resetSession()
@@ -720,6 +732,8 @@ final class XiaomiBluetoothBridge: NSObject {
     }
 
     private func resetSession() {
+        googleKeepalive?.cancel()
+        googleKeepalive = nil
         audioDiagnostics?.discardPartial(bytes: accumulator.pending.count)
         audioDiagnostics?.stop(reason: "session_reset")
         if streaming {
@@ -931,6 +945,32 @@ final class XiaomiBluetoothBridge: NSObject {
         )
     }
 
+    // The G9N9N identity/capability join and keepalive follow the GPL donor's
+    // BluetoothRemoteBridge; framing and decoding remain SayAll's existing path.
+    private func finishInitializationIfReady(generation: UInt64) {
+        guard capabilitiesConfirmed, !chromecastOnly || googleReadiness.isReady,
+              lifecycle == .awaitingCapabilities(generation), let peripheral else { return }
+        initializationTimeoutWorkItem?.cancel()
+        initializationTimeoutWorkItem = nil
+        reconnectPolicy.reset()
+        currentAttemptUsesCachedTarget = false
+        lifecycle = .ready(generation)
+        state = .ready(peripheral.name ?? (chromecastOnly ? "G9N9N" : "MI RC"))
+        AppLogger.shared.write("BLE INITIALIZATION result=passed family=\(chromecastOnly ? "g9n9n" : "xiaomi")")
+    }
+
+    private func scheduleGoogleKeepalive() {
+        googleKeepalive?.cancel()
+        guard chromecastOnly, streaming, let generation = currentGeneration() else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.streaming, self.currentGeneration() == generation else { return }
+            _ = self.requestMicrophoneExtend()
+            self.scheduleGoogleKeepalive()
+        }
+        googleKeepalive = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: work)
+    }
+
     private func handleControl(_ data: Data) {
         let controlAt = ProcessInfo.processInfo.systemUptime
         let bytes = Array(data)
@@ -944,8 +984,13 @@ final class XiaomiBluetoothBridge: NSObject {
                 AppLogger.shared.write("ATVV CAPS ignored_stale_phase")
                 return
             }
-            guard let parsed = ATVVCapabilities.parse(data) else {
+            guard let parsed = ATVVCapabilities.parse(data, allowingLegacyLayout: !chromecastOnly) else {
                 failInitialization(LocalizedMessage("connection.error.invalid_voice_response"))
+                return
+            }
+            if chromecastOnly && !googleReadiness.acceptCapabilities(parsed) {
+                AppLogger.shared.write("G9N9N INIT result=failed reason=unsupported_capabilities")
+                rejectUnsupportedAudio(LocalizedMessage("connection.error.unsupported_16khz_codec"))
                 return
             }
             capabilities = parsed
@@ -957,15 +1002,7 @@ final class XiaomiBluetoothBridge: NSObject {
                 return
             }
             capabilitiesConfirmed = true
-            initializationTimeoutWorkItem?.cancel()
-            initializationTimeoutWorkItem = nil
-            reconnectPolicy.reset()
-            currentAttemptUsesCachedTarget = false
-            lifecycle = .ready(generation)
-            if let peripheral {
-                state = .ready(peripheral.name ?? "MI RC")
-                AppLogger.shared.write("BLE READY name=\(peripheral.name ?? "MI RC")")
-            }
+            finishInitializationIfReady(generation: generation)
         case 0x08:
             guard requestMicrophoneOpen() else {
                 AppLogger.shared.write("ATVV MIC_OPEN remote_request_ignored")
@@ -973,6 +1010,11 @@ final class XiaomiBluetoothBridge: NSObject {
             }
             AppLogger.shared.write("ATVV MIC_OPEN remote_request")
         case 0x04:
+            if chromecastOnly && !G9N9NProtocol.acceptsStreamStart(data) {
+                AppLogger.shared.write("G9N9N STREAM result=rejected reason=invalid_start")
+                rejectUnsupportedAudio(LocalizedMessage("connection.error.invalid_voice_response"))
+                return
+            }
             guard ATVVSessionGate.canOpenMicrophone(
                 phase: lifecycle,
                 generation: generation,
@@ -1036,6 +1078,10 @@ final class XiaomiBluetoothBridge: NSObject {
             }
             audioDiagnostics?.discardPartial(bytes: partialFrameBytes)
             accumulator.reset()
+        case 0x0C:
+            guard chromecastOnly, lifecycle.acceptsProtocolData(generation: generation) else { return }
+            AppLogger.shared.write("G9N9N STREAM result=failed reason=microphone_refused")
+            rejectUnsupportedAudio(LocalizedMessage("connection.error.invalid_voice_response"))
         default:
             break
         }
@@ -1069,9 +1115,12 @@ final class XiaomiBluetoothBridge: NSObject {
         streaming = true
         delegate?.bluetoothBridgeDidStartVoice(self)
         AppLogger.shared.write("ATVV STREAM START session=\(sessionID)")
+        scheduleGoogleKeepalive()
     }
 
     private func stopStreaming() {
+        googleKeepalive?.cancel()
+        googleKeepalive = nil
         guard streaming else { return }
         streaming = false
         audioDiagnostics?.stop(reason: "remote_stop")
@@ -1298,7 +1347,7 @@ extension XiaomiBluetoothBridge: CBCentralManagerDelegate {
         }
         // 最后一道闸：无论从哪条路径连上来的，只要名字说明它是别的产品就立刻断开。
         // 前面几处判定可能因为「当时拿不到名字」而放行，这一层保证不会真的接管它。
-        if ForeignVoiceRemoteProduct.isRejected(name: peripheral.name) {
+        if !chromecastOnly && ForeignVoiceRemoteProduct.isRejected(name: peripheral.name) {
             reject(peripheral, reason: "foreign_product", source: "did_connect")
             central.cancelPeripheralConnection(peripheral)
             return
@@ -1434,7 +1483,12 @@ extension XiaomiBluetoothBridge {
         if let deviceInformationService = peripheral.services?.first(where: {
             $0.uuid == deviceInformationServiceUUID
         }) {
-            peripheral.discoverCharacteristics([modelNumberUUID], for: deviceInformationService)
+            peripheral.discoverCharacteristics(
+                chromecastOnly ? [modelNumberUUID, pnpIDUUID] : [modelNumberUUID],
+                for: deviceInformationService
+            )
+        } else if chromecastOnly {
+            failInitialization(LocalizedMessage("connection.error.invalid_voice_response"))
         }
     }
 
@@ -1509,6 +1563,13 @@ extension XiaomiBluetoothBridge {
                         AppLogger.errorFields(error)
                 )
                 return
+            }
+            if chromecastOnly {
+                guard let identity = service.characteristics?.first(where: { $0.uuid == pnpIDUUID }) else {
+                    failInitialization(LocalizedMessage("connection.error.invalid_voice_response"))
+                    return
+                }
+                peripheral.readValue(for: identity)
             }
             guard let characteristic = service.characteristics?.first(where: { $0.uuid == modelNumberUUID }) else {
                 return
@@ -1656,6 +1717,18 @@ extension XiaomiBluetoothBridge {
             diagnostic?.reject(.missingValue)
             return
         }
+        if chromecastOnly && characteristic.uuid == pnpIDUUID {
+            guard lifecycle.acceptsInitializationCallback(generation: generation) ||
+                    lifecycle.acceptsCapabilities(generation: generation) else { return }
+            guard googleReadiness.acceptIdentity(data) else {
+                AppLogger.shared.write("G9N9N INIT result=failed reason=identity_mismatch")
+                failInitialization(LocalizedMessage("connection.error.invalid_voice_response"))
+                return
+            }
+            AppLogger.shared.write("G9N9N IDENTITY result=passed")
+            finishInitializationIfReady(generation: generation)
+            return
+        }
         if characteristic.uuid == batteryLevelUUID {
             let level = data.first.map(Int.init)
             guard !hasObservedBatteryLevel || lastObservedBatteryLevel != level else { return }
@@ -1677,6 +1750,7 @@ extension XiaomiBluetoothBridge {
             return
         }
         if characteristic.uuid == modelNumberUUID {
+            guard !chromecastOnly else { return }
             guard let modelNumber = String(data: data, encoding: .utf8) else {
                 AppLogger.shared.write("BLE MODEL unreadable")
                 return

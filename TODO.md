@@ -554,6 +554,7 @@
   - 后续所有候选硬件先通过 Gate 0：在目标 macOS 版本上完成首次配对、稳定连接、断开和重连；只有 Gate 0 通过后，才继续验证 CoreBluetooth 服务、系统 HID 共存、ATVV 版本、codec、按键、音质和断连恢复。
   - G20BTS Plus / G20S Pro 系列已有 ATVV 实测，但已公开样机主要是 ATVV v0.4、8kHz；当前 App 只接受 16kHz，因此需要补充 8kHz 解码与输出、旧版帧格式和按键会话逻辑，适配成本高于 UR02。同名商品同时存在蓝牙、2.4GHz USB 和不同固件，不能仅凭商品标题承诺兼容。
   - Google Chromecast with Google TV Voice Remote 已有 ATVV v1.0 / 16kHz 实测，理论适配成本也较低，但供货状态不稳定，因此只作为备选兼容设备。
+  - 2026-10-29 本地公开适配：从 GPL-3.0-only 的 Voice Input Buddy 固定版本复用 G9N9N 身份、能力与会话检查，显式构建开关下复用现有 SayAll 语音和音频出口；普通按键不支持，编译与真机验证按 `Testing/PublicChromecastVoice.md` 逐项记录，当前不得标记完成。
   - 本次测试的“小米蓝牙语音遥控器第三方兼容版”不能与另一个已单独验证可连接 Mac 的 RC001-MS 混为同一型号；完整证据、候选状态和真机验收清单保存在独立的产品资料工作区。
 - [ ] 同一个遥控器在多台已配对 Mac 之间切换蓝牙连接（不使用网络转发） <!-- workshop:status=阻塞;priority=P2 -->
   - 当前结论：小米产品页与 Bluetooth SIG 官方产品记录均未声明 RC003 支持多个配对主机或主机切换；Apple 也明确说明 App 取消本地 CoreBluetooth 连接不保证底层物理链路断开。因此“在任意一台 Mac 的 App 中单击后直接抢占遥控器”目前不能判定为可实现。

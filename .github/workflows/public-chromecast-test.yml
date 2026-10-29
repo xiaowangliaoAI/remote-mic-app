@@ -1,0 +1,40 @@
+name: Public Chromecast compatibility test
+on:
+  push:
+    branches: [codex/chromecast-public]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    if: github.repository_owner == 'xiaowangliaoAI'
+    runs-on: macos-15
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        public_chromecast: ['0', '1']
+    env:
+      SAYALL_ENABLE_PUBLIC_CHROMECAST: ${{ matrix.public_chromecast }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select existing Swift 6.2 SDK
+        run: |
+          test -d /Applications/Xcode_26.2.app/Contents/Developer
+          echo 'DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
+      - name: Toolchain
+        run: swift --version
+      - name: Tests
+        run: swift test --disable-keychain --skip BuildSigningTests
+      - name: Build independent app without driver installation
+        if: matrix.public_chromecast == '1'
+        env:
+          SAYALL_BUILD_CHANNEL: local
+        run: scripts/build-app.sh
+      - name: Preserve build for inspection
+        if: matrix.public_chromecast == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SayAll-public-chromecast-unverified
+          path: dist/SayAll.app
+          retention-days: 7

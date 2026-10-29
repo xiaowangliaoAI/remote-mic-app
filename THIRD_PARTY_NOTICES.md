@@ -84,3 +84,18 @@ The Doubao compatibility design is informed by MiRemoteVoice: a side-by-side Bla
 ## RC003 product photo
 
 The RC003 product photo bundled as `RC003-remote-photo.png` was supplied by the user on 2026-07-17 for the physical-button mapping interface. It is preserved at its original 508 x 1030 aspect ratio. Copyright and trademark rights in the photo and depicted products remain with their respective owners; the GPL-3.0-only license for the program does not grant additional rights to this image or the Xiaomi marks.
+# Public G9N9N compatibility additions
+
+The optional public Chromecast voice path includes code adapted from
+[zfdang/voice-input-buddy](https://github.com/zfdang/voice-input-buddy),
+commit `f51f5c800e6de9e2e9a55be61744c9a40797128b` (v26-10-28.515).
+Copyright remains with zfdang and the Voice Input Buddy contributors and
+the upstream contributors identified by that project's provenance notices.
+License: GPL-3.0-only, compatible with this project's software license.
+
+Adapted portions: `Devices/G9N9NProtocol.swift`, PnP parsing from
+`Devices/RemoteHIDIdentity.swift`, and the Google-only capability validation,
+stream-start checks, microphone-refusal handling and 10-second keepalive from
+`Devices/BluetoothRemoteBridge.swift`. The donor's UI, drivers, private packages,
+credentials and branding are not included. SayAll's existing decoder and audio
+output remain in use. Modified corresponding source is provided in this repository.

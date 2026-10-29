@@ -1,5 +1,7 @@
 # Onboarding macOS 平台适配规范
 
+本地公开 G9N9N 适配构建：显式设置 `SAYALL_ENABLE_PUBLIC_CHROMECAST=1` 时，复用原控制来源入口；同一 BLE 外设的 PnP 18D1:9450 和 ATVV 1.0 / 16kHz 能力必须同时通过。来源仅支持按住语音、不接管 HID 普通键。连接检查不伪造按键结果，真实语音及文字上屏依然是完成条件。默认构建保持原行为。
+
 本文把 [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) 的跨平台产品能力映射到当前 macOS 实现。跨平台产品不变量以产品规范为准；本文只规定 macOS 的具体适配和验收边界。
 
 ## 当前平台映射
