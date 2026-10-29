@@ -29,7 +29,8 @@ jobs:
       - name: Build independent app without driver installation
         if: matrix.public_chromecast == '1'
         env:
-          SAYALL_BUILD_CHANNEL: local
+          SAYALL_BUILD_CHANNEL: ''
+          SAYALL_PRIVATE_PLATFORM_MODE: public
         run: scripts/build-app.sh
       - name: Preserve build for inspection
         if: matrix.public_chromecast == '1'
@@ -43,6 +44,7 @@ jobs:
           info['CFBundleIdentifier']='com.xiaowangliaoai.SayAllChromecastTest'
           info['CFBundleDisplayName']='SayAll Chromecast Test'
           info['SUEnableAutomaticChecks']=False
+          info['SayAllChromecastIncluded']=True
           info.pop('CFBundleIconFile',None)
           info.pop('SUFeedURL',None)
           p.write_bytes(plistlib.dumps(info))
