@@ -791,7 +791,11 @@ struct OnboardingView: View {
 
     private var availablePhysicalControlSources: [OnboardingControlSource] {
         visibleControlSources.filter {
+            #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+            [.xiaomiRemote, .siriRemote, .chromecastRemote].contains($0)
+            #else
             [.xiaomiRemote, .siriRemote].contains($0)
+            #endif
         }
     }
 

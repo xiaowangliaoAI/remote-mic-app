@@ -680,7 +680,7 @@ struct OnboardingVoicePairingPlan: Equatable {
             binding.shortcut == .function &&
             !controlSource.supportedGestureModes.contains(.toggle)
         let chromecastMode: ChromecastVoiceMode? = controlSource == .chromecastRemote
-            ? (binding.gestureMode == .toggle ? .toggle : .hold)
+            ? (binding.gestureMode == .toggle && controlSource.supportedGestureModes.contains(.toggle) ? .toggle : .hold)
             : nil
         return Self(
             binding: binding,

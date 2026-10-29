@@ -164,8 +164,13 @@ struct OnboardingFlowTests {
         )
         defer { fixture.close() }
         #expect(fixture.settings.onboardingStep == .remoteAvailability)
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(fixture.settings.onboardingControlSource == .chromecastRemote)
+        #expect(fixture.probe.actions["control-source.chromecast_remote"] != nil)
+        #else
         #expect(fixture.settings.onboardingControlSource == .unselected)
         #expect(fixture.probe.actions["control-source.chromecast_remote"] == nil)
+        #endif
     }
 
     @Test @MainActor func missingSiriRemotePackageRemovesCardsAndRepairsSavedSelection() throws {
@@ -3533,7 +3538,11 @@ struct OnboardingFlowTests {
             invoke("control-source.more", on: remoteSource)
         }
         #expect(!remoteSource.settings.siriRemoteEnabled)
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(remoteSource.probe.actions["control-source.chromecast_remote"] != nil)
+        #else
         #expect(remoteSource.probe.actions["control-source.chromecast_remote"] == nil)
+        #endif
         let visibleSources = OnboardingControlSourceVisibilityPolicy.visibleSources(
             OnboardingBuildCapabilities.availableControlSources
         )

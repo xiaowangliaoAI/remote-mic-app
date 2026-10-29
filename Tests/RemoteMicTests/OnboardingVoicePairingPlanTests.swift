@@ -37,10 +37,17 @@ struct OnboardingVoicePairingPlanTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let settings = AppSettings(defaults: defaults)
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        let shortcut = VoiceKeyMode.function
+        let gesture = VoiceGestureMode.hold
+        #else
+        let shortcut = VoiceKeyMode.rightCommand
+        let gesture = VoiceGestureMode.toggle
+        #endif
         let learned = VoiceToolUserBinding(
             tool: .doubao,
-            shortcut: .rightCommand,
-            gestureMode: .toggle,
+            shortcut: shortcut,
+            gestureMode: gesture,
             source: .userLearned,
             validationState: .verified,
             verifiedToolVersion: nil,
@@ -62,7 +69,8 @@ struct OnboardingVoicePairingPlanTests {
             controlSource: settings.onboardingControlSource,
             userBinding: settings.verifiedVoiceToolBinding
         ))
-        #expect(plan.binding.shortcut == .rightCommand)
+        #expect(plan.binding.shortcut == shortcut)
+        #expect(plan.binding.gestureMode == gesture)
         #expect(plan.binding.source == .userLearned)
     }
 
@@ -107,17 +115,29 @@ struct OnboardingVoicePairingPlanTests {
             tool: .doubao,
             controlSource: .chromecastRemote
         ))
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(doubao.binding.gestureMode == .hold)
+        #expect(doubao.binding.shortcut == .function)
+        #expect(!doubao.fnTapModeEnabled)
+        #expect(doubao.chromecastVoiceMode == .hold)
+        #else
         #expect(doubao.binding.gestureMode == .toggle)
         #expect(doubao.binding.shortcut == .rightCommand)
         #expect(!doubao.fnTapModeEnabled)
         #expect(doubao.chromecastVoiceMode == .toggle)
+        #endif
 
         let typeless = try #require(OnboardingVoicePairingPlan.resolve(
             tool: .typeless,
             controlSource: .chromecastRemote
         ))
         #expect(typeless.binding.shortcut == .function)
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(typeless.fnTapModeEnabled)
+        #expect(typeless.chromecastVoiceMode == .hold)
+        #else
         #expect(!typeless.fnTapModeEnabled)
+        #endif
     }
 
     @Test func appleAndWebExposeHoldAndToggle() {
@@ -135,12 +155,16 @@ struct OnboardingVoicePairingPlanTests {
             verifiedToolVersion: nil,
             verifiedAt: Date(timeIntervalSince1970: 1)
         )
-        let chromecast = try #require(OnboardingVoicePairingPlan.resolve(
+        let chromecast = OnboardingVoicePairingPlan.resolve(
             tool: .doubao,
             controlSource: .chromecastRemote,
             userBinding: learned
-        ))
-        #expect(chromecast.binding == learned)
+        )
+        #if SAYALL_PUBLIC_CHROMECAST_ENABLED
+        #expect(chromecast == nil)
+        #else
+        #expect(try #require(chromecast).binding == learned)
+        #endif
 
         #expect(OnboardingVoicePairingPlan.resolve(
             tool: .doubao,
