@@ -1504,8 +1504,10 @@ struct OnboardingView: View {
 
     private var physicalRemoteContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            onboardingTitle("onboarding.remote.title")
-            Text(verbatim: localization.text("onboarding.remote.detail"))
+            onboardingTitle(usesPublicChromecastVoiceOnly
+                ? "onboarding.remote.voice_only.title" : "onboarding.remote.title")
+            Text(verbatim: localization.text(usesPublicChromecastVoiceOnly
+                ? "onboarding.control_source.chromecast_voice_only.detail" : "onboarding.remote.detail"))
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1555,26 +1557,28 @@ struct OnboardingView: View {
                 compact: true
             )
 
-            statusCard(
-                icon: remoteInputDiagnostic.shouldShowVoiceButtonCorrection
-                    ? "exclamationmark.triangle.fill"
-                    : observedRemoteButtons.isEmpty
-                        ? "button.programmable"
-                        : "checkmark.circle.fill",
-                title: localization.text(
-                    remoteInputDiagnostic.shouldShowVoiceButtonCorrection
-                        ? "onboarding.remote.voice_button_mistake.title"
+            if !usesPublicChromecastVoiceOnly {
+                statusCard(
+                    icon: remoteInputDiagnostic.shouldShowVoiceButtonCorrection
+                        ? "exclamationmark.triangle.fill"
                         : observedRemoteButtons.isEmpty
-                            ? "onboarding.remote.button_waiting"
-                            : "onboarding.remote.button_received"
-                ),
-                detail: physicalRemoteButtonStatusDetail,
-                isComplete: !observedRemoteButtons.isEmpty,
-                pendingColor: remoteInputDiagnostic.shouldShowVoiceButtonCorrection ? .orange : nil,
-                compact: true
-            )
+                            ? "button.programmable"
+                            : "checkmark.circle.fill",
+                    title: localization.text(
+                        remoteInputDiagnostic.shouldShowVoiceButtonCorrection
+                            ? "onboarding.remote.voice_button_mistake.title"
+                            : observedRemoteButtons.isEmpty
+                                ? "onboarding.remote.button_waiting"
+                                : "onboarding.remote.button_received"
+                    ),
+                    detail: physicalRemoteButtonStatusDetail,
+                    isComplete: !observedRemoteButtons.isEmpty,
+                    pendingColor: remoteInputDiagnostic.shouldShowVoiceButtonCorrection ? .orange : nil,
+                    compact: true
+                )
+            }
 
-            if shouldShowSecureInputWarning {
+            if !usesPublicChromecastVoiceOnly && shouldShowSecureInputWarning {
                 secureInputWarningCard
             }
 
@@ -2821,7 +2825,9 @@ struct OnboardingView: View {
                     selectedControlConnectedKey,
                     isComplete: selectedControlConnected
                 )
-                sideCheck("onboarding.side.button_received", isComplete: !observedRemoteButtons.isEmpty)
+                if !usesPublicChromecastVoiceOnly {
+                    sideCheck("onboarding.side.button_received", isComplete: !observedRemoteButtons.isEmpty)
+                }
             }
         case .audio:
             sidePanel(titleKey: "onboarding.side.audio") {

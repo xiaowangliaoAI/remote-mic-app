@@ -1303,3 +1303,4 @@
 "audio.mac_microphone.voice_toggle" = "按一下开始，再按一下结束";
 "audio.mac_microphone.error.input_monitoring" = "无法监听语音快捷键。请在系统设置中允许输入监控后重试。";
 "onboarding.control_source.chromecast_voice_only.detail" = "按住语音键说话，松开结束。此连接方式不提供普通按键映射。";
+"onboarding.remote.voice_only.title" = "连接 Google 遥控器";
